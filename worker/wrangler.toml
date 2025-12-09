@@ -1,0 +1,15 @@
+# worker/wrangler.toml
+name = "tempmail-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+EMAIL_DOMAIN = "tempmail.dev"
+TTL_MINUTES = "60"
+CORS_ORIGIN = "http://localhost:3000"
+SUPABASE_URL = "https://lthrzhlwxtagbulpndfm.supabase.co"
+SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0aHJ6aGx3eHRhZ2J1bHBuZGZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyNzc3ODYsImV4cCI6MjA3OTg1Mzc4Nn0.C5uuK5YhrcuVtYjduseoDy7odaJ-mG1ATYxMzzWfzVE"
+
+[dev]
+port = 8787
+local_protocol = "http"
