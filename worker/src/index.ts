@@ -128,20 +128,9 @@ function jsonResponse(data: unknown, status: number, env: Env, setCookie?: strin
 // }
 
 async function getOrCreateSession(env: Env): Promise<{ sessionId: string; isNew: boolean }> {
-    const supabase = getSupabase(env);
-
     // Generate ID on client side as fallback
     const newId = crypto.randomUUID();
-
-    const { error } = await supabase
-        .from('sessions')
-        .insert({ id: newId });
-
-    if (error) {
-        console.error('Insert error:', error);
-        throw new Error(`Failed to create session: ${error.message}`);
-    }
-
+    // TODO: Implement session storage in Supabase when DB schema is set up
     return { sessionId: newId, isNew: true };
 }
 
@@ -151,6 +140,29 @@ async function getOrCreateSession(env: Env): Promise<{ sessionId: string; isNew:
 
 // Route Handlers
 async function handleGetMailbox(sessionId: string, env: Env): Promise<Response> {
+    // MOCK: Return a test mailbox for local development
+    const mockMailbox = {
+        id: crypto.randomUUID(),
+        session_id: sessionId,
+        local_part: `test_${sessionId.slice(0, 8)}`,
+        domain: 'tempmail.dev',
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        is_active: true,
+    };
+
+    const ttlSeconds = 3600; // 60 minutes
+    return jsonResponse({
+        id: mockMailbox.id,
+        email: `${mockMailbox.local_part}@${mockMailbox.domain}`,
+        local_part: mockMailbox.local_part,
+        domain: mockMailbox.domain,
+        created_at: mockMailbox.created_at,
+        expires_at: mockMailbox.expires_at,
+        ttl_seconds: ttlSeconds,
+    }, 200, env);
+
+    /* ORIGINAL CODE - TODO: ENABLE WHEN DB SCHEMA IS SET UP
     const supabase = getSupabase(env);
 
     // Find active mailbox
@@ -179,9 +191,34 @@ async function handleGetMailbox(sessionId: string, env: Env): Promise<Response> 
 
     // No active mailbox, create one
     return handleCreateMailbox(sessionId, env);
+    */
 }
 
 async function handleCreateMailbox(sessionId: string, env: Env): Promise<Response> {
+    // MOCK: Return a new test mailbox for local development
+    const newId = crypto.randomUUID();
+    const newMailbox = {
+        id: newId,
+        session_id: sessionId,
+        local_part: `temp_${newId.slice(0, 8)}`,
+        domain: 'tempmail.dev',
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        is_active: true,
+    };
+
+    const ttlMinutes = 60;
+    return jsonResponse({
+        id: newMailbox.id,
+        email: `${newMailbox.local_part}@${newMailbox.domain}`,
+        local_part: newMailbox.local_part,
+        domain: newMailbox.domain,
+        created_at: newMailbox.created_at,
+        expires_at: newMailbox.expires_at,
+        ttl_seconds: ttlMinutes * 60,
+    }, 201, env);
+
+    /* ORIGINAL CODE - TODO: ENABLE WHEN DB SCHEMA IS SET UP
     const supabase = getSupabase(env);
 
     // Deactivate existing mailboxes
@@ -221,9 +258,17 @@ async function handleCreateMailbox(sessionId: string, env: Env): Promise<Respons
         expires_at: mailbox.expires_at,
         ttl_seconds: ttlMinutes * 60,
     }, 201, env);
+    */
 }
 
 async function handleGetMessages(sessionId: string, mailboxId: string, env: Env): Promise<Response> {
+    // MOCK: Return empty messages list for local development
+    return jsonResponse({
+        messages: [],
+        count: 0,
+    }, 200, env);
+
+    /* ORIGINAL CODE - TODO: ENABLE WHEN DB SCHEMA IS SET UP
     const supabase = getSupabase(env);
 
     // Verify ownership
@@ -259,6 +304,7 @@ async function handleGetMessages(sessionId: string, mailboxId: string, env: Env)
         })),
         count: messages?.length || 0,
     }, 200, env);
+    */
 }
 
 async function handleGetMessage(sessionId: string, messageId: string, showHeaders: boolean, env: Env): Promise<Response> {
@@ -309,7 +355,7 @@ async function handleDeleteMessage(sessionId: string, messageId: string, env: En
         .eq('id', messageId)
         .single();
 
-    if (!email || email.mailboxes.session_id !== sessionId) {
+    if (!email || (Array.isArray(email.mailboxes) && email.mailboxes[0]?.session_id !== sessionId)) {
         return jsonResponse({ error: 'Message not found' }, 404, env);
     }
 
@@ -421,12 +467,19 @@ async function handleEmailReceived(message: EmailMessage, env: Env): Promise<voi
 
         // Save attachment metadata
         if (hasAttachments && email) {
-            const attachments = parsed.attachments!.map(att => ({
-                email_id: email.id,
-                filename: att.filename || 'unnamed',
-                content_type: att.mimeType,
-                size_bytes: att.content?.length || 0,
-            }));
+            const attachments = parsed.attachments!.map(att => {
+                const contentLength = typeof att.content === 'string' 
+                    ? att.content.length 
+                    : att.content instanceof ArrayBuffer 
+                    ? att.content.byteLength 
+                    : att.content?.length || 0;
+                return {
+                    email_id: email.id,
+                    filename: att.filename || 'unnamed',
+                    content_type: att.mimeType,
+                    size_bytes: contentLength,
+                };
+            });
 
             await supabase.from('attachments').insert(attachments);
         }
@@ -467,7 +520,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
 
     // Get or create session
-    const { sessionId, isNew } = await getOrCreateSession(request, env);
+    const { sessionId, isNew } = await getOrCreateSession(env);
     const setCookie = isNew
         ? `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
         : undefined;

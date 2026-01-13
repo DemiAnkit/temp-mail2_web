@@ -1,2 +1,11 @@
 # Don't commit secrets!
 .dev.vars
+.env
+
+# Dependencies
+node_modules/
+
+# Wrangler
+.wrangler/
+dist/
+worker-site/
